@@ -1,0 +1,32 @@
+# Binarios
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+api
+
+# Test
+*.test
+*.tmp
+
+# Go
+vendor/
+
+# Environment
+.env
+.env.local
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Database
+postgres_data/

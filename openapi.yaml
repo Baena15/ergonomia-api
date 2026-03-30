@@ -1,0 +1,439 @@
+openapi: 3.0.3
+info:
+  title: Ergonomia API
+  description: |
+    API REST para la web de afiliados de productos ergonómicos.
+    
+    Características:
+    - Autenticación JWT
+    - Gestión de productos
+    - Favoritos y comparaciones
+    - Admin dashboard
+    - HTMX para renderizado parcial
+  version: 1.0.0
+  contact:
+    name: Gentleman Programming
+    url: https://github.com/Gentleman-Programming
+
+servers:
+  - url: http://localhost:8080
+    description: Development server
+  - url: https://api.ergonomia.pro
+    description: Production server
+
+tags:
+  - name: Auth
+    description: Autenticación y gestión de usuarios
+  - name: Products
+    description: Gestión de productos (público)
+  - name: User
+    description: Operaciones de usuario autenticado
+  - name: Admin
+    description: Panel de administración
+  - name: HTMX
+    description: Endpoints para HTMX (HTML parcial)
+
+paths:
+  /api/v1/auth/register:
+    post:
+      tags: [Auth]
+      summary: Registrar nuevo usuario
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegisterRequest'
+      responses:
+        201:
+          description: Usuario creado exitosamente
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TokenResponse'
+        400:
+          description: Datos inválidos
+        409:
+          description: Email ya registrado
+
+  /api/v1/auth/login:
+    post:
+      tags: [Auth]
+      summary: Iniciar sesión
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+      responses:
+        200:
+          description: Login exitoso
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TokenResponse'
+        401:
+          description: Credenciales inválidas
+
+  /api/v1/auth/refresh:
+    post:
+      tags: [Auth]
+      summary: Renovar access token
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                refresh_token:
+                  type: string
+      responses:
+        200:
+          description: Token renovado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TokenResponse'
+        401:
+          description: Refresh token inválido
+
+  /api/v1/products:
+    get:
+      tags: [Products]
+      summary: Listar productos
+      parameters:
+        - name: category
+          in: query
+          schema:
+            type: string
+        - name: min_price
+          in: query
+          schema:
+            type: number
+        - name: max_price
+          in: query
+          schema:
+            type: number
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            default: 0
+      responses:
+        200:
+          description: Lista de productos
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProductListResponse'
+
+  /api/v1/products/{slug}:
+    get:
+      tags: [Products]
+      summary: Obtener producto por slug
+      parameters:
+        - name: slug
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        200:
+          description: Detalle del producto
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Product'
+        404:
+          description: Producto no encontrado
+
+  /api/v1/me:
+    get:
+      tags: [User]
+      summary: Obtener usuario actual
+      security:
+        - BearerAuth: []
+      responses:
+        200:
+          description: Datos del usuario
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserResponse'
+        401:
+          description: No autorizado
+
+  /api/v1/favorites:
+    get:
+      tags: [User]
+      summary: Listar favoritos
+      security:
+        - BearerAuth: []
+      responses:
+        200:
+          description: Lista de favoritos
+
+    post:
+      tags: [User]
+      summary: Añadir a favoritos
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                product_id:
+                  type: integer
+      responses:
+        201:
+          description: Favorito añadido
+
+  /api/v1/favorites/{productID}:
+    delete:
+      tags: [User]
+      summary: Eliminar de favoritos
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: productID
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        200:
+          description: Favorito eliminado
+
+  /api/v1/comparisons:
+    get:
+      tags: [User]
+      summary: Listar comparaciones
+      security:
+        - BearerAuth: []
+      responses:
+        200:
+          description: Lista de comparaciones
+
+    post:
+      tags: [User]
+      summary: Crear comparación
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateComparisonRequest'
+      responses:
+        201:
+          description: Comparación creada
+
+  /api/v1/comparisons/{slug}:
+    get:
+      tags: [User]
+      summary: Obtener comparación
+      parameters:
+        - name: slug
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        200:
+          description: Detalle de comparación
+
+  /api/v1/admin/stats:
+    get:
+      tags: [Admin]
+      summary: Estadísticas del sistema
+      security:
+        - BearerAuth: []
+      responses:
+        200:
+          description: Estadísticas
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminStats'
+
+  /health:
+    get:
+      tags: [Health]
+      summary: Health check
+      responses:
+        200:
+          description: Servicio saludable
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                  version:
+                    type: string
+                  timestamp:
+                    type: string
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    RegisterRequest:
+      type: object
+      required:
+        - email
+        - password
+        - first_name
+        - last_name
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+          minLength: 8
+        first_name:
+          type: string
+        last_name:
+          type: string
+
+    LoginRequest:
+      type: object
+      required:
+        - email
+        - password
+      properties:
+        email:
+          type: string
+        password:
+          type: string
+
+    TokenResponse:
+      type: object
+      properties:
+        access_token:
+          type: string
+        refresh_token:
+          type: string
+        expires_in:
+          type: integer
+        user:
+          $ref: '#/components/schemas/UserResponse'
+
+    UserResponse:
+      type: object
+      properties:
+        id:
+          type: integer
+        email:
+          type: string
+        first_name:
+          type: string
+        last_name:
+          type: string
+        is_admin:
+          type: boolean
+        created_at:
+          type: string
+          format: date-time
+
+    Product:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        slug:
+          type: string
+        description:
+          type: string
+        category:
+          type: string
+        price:
+          type: number
+        currency:
+          type: string
+        rating:
+          type: number
+        reviews:
+          type: integer
+        image_url:
+          type: string
+        pros:
+          type: array
+          items:
+            type: string
+        cons:
+          type: array
+          items:
+            type: string
+        ideal_for:
+          type: array
+          items:
+            type: string
+        affiliate_links:
+          type: object
+          additionalProperties:
+            type: string
+
+    ProductListResponse:
+      type: object
+      properties:
+        products:
+          type: array
+          items:
+            $ref: '#/components/schemas/Product'
+        total:
+          type: integer
+        page:
+          type: integer
+        page_size:
+          type: integer
+        total_pages:
+          type: integer
+
+    CreateComparisonRequest:
+      type: object
+      required:
+        - title
+        - product_ids
+      properties:
+        title:
+          type: string
+        product_ids:
+          type: array
+          items:
+            type: integer
+          minItems: 2
+          maxItems: 4
+
+    AdminStats:
+      type: object
+      properties:
+        total_users:
+          type: integer
+        total_products:
+          type: integer
+        active_products:
+          type: integer
+        total_favorites:
+          type: integer
+        total_comparisons:
+          type: integer
