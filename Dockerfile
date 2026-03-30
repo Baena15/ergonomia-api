@@ -2,9 +2,9 @@ FROM golang:1.23-alpine AS builder
 
 WORKDIR /app
 
-RUN apk add --no-cache git ca-certificates
+RUN apk add --no-cache git
 
-COPY go.mod go.sum ./
+COPY go.mod ./
 RUN go mod download
 
 COPY . .
