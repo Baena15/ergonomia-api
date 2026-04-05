@@ -1,0 +1,5 @@
+# URL PÚBLICA de PostgreSQL en Railway
+# Útil para conectar desde herramientas locales (pgAdmin, DBeaver, etc.)
+# ATENCIÓN: No uses esta URL en producción, usa la variable DATABASE_URL interna
+
+postgresql://postgres:NpdtWmEdacuuupVDrUglOfwyEfVmuDad@junction.proxy.rlwy.net:39964/railway
