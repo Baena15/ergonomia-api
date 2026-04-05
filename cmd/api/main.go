@@ -130,7 +130,6 @@ func main() {
 
 			r.Route("/admin", func(r chi.Router) {
 				r.Get("/stats", h.GetAdminStats)
-				r.Post("/migrate", h.RunMigrations)
 				r.Route("/products", func(r chi.Router) {
 					r.Post("/", h.CreateProduct)
 					r.Put("/{id}", h.UpdateProduct)
@@ -138,6 +137,9 @@ func main() {
 				})
 			})
 		})
+
+		// Endpoint público para migraciones (temporal)
+		r.Post("/admin/migrate", h.RunMigrations)
 	})
 
 	// Static files (templates HTMX)
