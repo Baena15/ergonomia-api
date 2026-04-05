@@ -75,6 +75,9 @@ func main() {
 		MaxAge:           300,
 	}))
 
+	// Endpoint temporal para crear tablas (ejecutar una vez)
+	r.Post("/setup-db", h.PublicMigrate)
+
 	// Health check
 	r.Get("/health", func(w http.ResponseWriter, r *http.Request) {
 		ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
