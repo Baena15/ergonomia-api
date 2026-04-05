@@ -4,10 +4,8 @@ nixPkgs = ["go_1_23"]
 [phases.build]
 cmds = [
     "ls -la",
-    "ls -la cmd/ || echo 'NO CMD DIR'",
-    "ls -la cmd/api/ || echo 'NO CMD/API DIR'",
     "go mod download",
-    "go build -o api ./cmd/api"
+    "go build -o api ."
 ]
 
 [start]
