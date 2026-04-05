@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"encoding/json"
+	"log"
 	"net/http"
 	"strconv"
 
@@ -53,6 +54,8 @@ func (h *Handler) ListProducts(w http.ResponseWriter, r *http.Request) {
 
 	result, err := h.store.ListProducts(r.Context(), filters)
 	if err != nil {
+		// Log detallado del error para debugging
+		log.Printf("❌ ListProducts error: %v", err)
 		RespondWithError(w, http.StatusInternalServerError, "Error fetching products")
 		return
 	}
