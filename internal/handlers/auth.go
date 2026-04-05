@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 
@@ -57,6 +58,21 @@ func (h *Handler) Register(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Crear configuración de notificaciones por defecto
+	_, _ = h.store.CreateNotificationSettings(r.Context(), user.ID)
+
+	// Enviar email de bienvenida (async - no bloquear la respuesta)
+	go func() {
+		if err := h.emailService.SendWelcome(user.Email, user.FirstName); err != nil {
+			// Log error pero no fallar el registro
+			// En producción usar un logger proper
+			println("Error sending welcome email:", err.Error())
+		} else {
+			// Marcar como enviado
+			_ = h.store.MarkWelcomeEmailSent(context.Background(), user.ID)
+		}
+	}()
+
 	// Generar tokens
 	accessToken, err := h.jwtService.GenerateAccessToken(user.ID, user.Email, user.IsAdmin)
 	if err != nil {
@@ -111,6 +127,49 @@ func (h *Handler) Login(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Detectar información del dispositivo
+	userAgent := r.Header.Get("User-Agent")
+	ipAddress := getClientIP(r)
+	deviceInfo := h.deviceParser.Parse(userAgent)
+
+	// Guardar en historial de logins
+	loginHistory, err := h.store.CreateLoginHistory(r.Context(), user.ID, ipAddress, userAgent, deviceInfo)
+	if err != nil {
+		// Log error pero no fallar el login
+		println("Error saving login history:", err.Error())
+	}
+
+	// Verificar si es un dispositivo nuevo
+	isNewDevice := h.store.IsNewDeviceForUser(r.Context(), user.ID, deviceInfo)
+
+	// Obtener configuraciones de notificación
+	notifSettings, _ := h.store.GetNotificationSettings(r.Context(), user.ID)
+
+	// Enviar email de notificación si está habilitado y es nuevo dispositivo o login general
+	shouldSendEmail := notifSettings != nil && 
+		((notifSettings.EmailOnNewDevice && isNewDevice) || notifSettings.EmailOnLogin)
+
+	if shouldSendEmail && loginHistory != nil {
+		go func() {
+			emailData := models.LoginNotificationEmail{
+				UserName:    user.FirstName,
+				Email:       user.Email,
+				DeviceInfo:  deviceInfo,
+				IPAddress:   ipAddress,
+				Location:    "Ubicación desconocida", // Podemos añadir geolocalización después
+				LoginTime:   loginHistory.LoginAt,
+				IsNewDevice: isNewDevice,
+			}
+
+			if err := h.emailService.SendLoginNotification(emailData); err != nil {
+				println("Error sending login notification:", err.Error())
+			} else {
+				// Marcar como enviado
+				_ = h.store.MarkLoginEmailSent(context.Background(), loginHistory.ID)
+			}
+		}()
+	}
+
 	// Generar tokens
 	accessToken, err := h.jwtService.GenerateAccessToken(user.ID, user.Email, user.IsAdmin)
 	if err != nil {
@@ -132,6 +191,65 @@ func (h *Handler) Login(w http.ResponseWriter, r *http.Request) {
 	}
 
 	RespondWithJSON(w, http.StatusOK, response)
+}
+
+// getClientIP obtiene la IP real del cliente (considerando proxies)
+func getClientIP(r *http.Request) string {
+	// Verificar headers de proxy comunes
+	headers := []string{"X-Forwarded-For", "X-Real-Ip"}
+	for _, header := range headers {
+		if ip := r.Header.Get(header); ip != "" {
+			// X-Forwarded-For puede contener múltiples IPs, tomar la primera
+			if idx := len(ip); idx > 0 {
+				if comma := len(ip); comma > 0 {
+					parts := splitIP(ip)
+					if len(parts) > 0 {
+						return parts[0]
+					}
+				}
+			}
+			return ip
+		}
+	}
+
+	// Si no hay headers de proxy, usar RemoteAddr
+	ip := r.RemoteAddr
+	// Quitar el puerto si existe
+	if idx := len(ip); idx > 0 {
+		for i := len(ip) - 1; i >= 0; i-- {
+			if ip[i] == ':' {
+				return ip[:i]
+			}
+		}
+	}
+	return ip
+}
+
+// splitIP separa IPs por coma (para X-Forwarded-For)
+func splitIP(s string) []string {
+	var result []string
+	start := 0
+	for i := 0; i < len(s); i++ {
+		if s[i] == ',' {
+			result = append(result, trimSpace(s[start:i]))
+			start = i + 1
+		}
+	}
+	result = append(result, trimSpace(s[start:]))
+	return result
+}
+
+// trimSpace elimina espacios al inicio y final
+func trimSpace(s string) string {
+	start := 0
+	end := len(s)
+	for start < end && (s[start] == ' ' || s[start] == '\t') {
+		start++
+	}
+	for end > start && (s[end-1] == ' ' || s[end-1] == '\t') {
+		end--
+	}
+	return s[start:end]
 }
 
 // RefreshToken renueva el access token

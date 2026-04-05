@@ -7,6 +7,8 @@ import (
 	"strconv"
 
 	"github.com/Gentleman-Programming/ergonomia-api/internal/config"
+	"github.com/Gentleman-Programming/ergonomia-api/internal/pkg/device"
+	"github.com/Gentleman-Programming/ergonomia-api/internal/pkg/email"
 	"github.com/Gentleman-Programming/ergonomia-api/internal/store"
 	"github.com/Gentleman-Programming/ergonomia-api/pkg/auth"
 	"github.com/go-chi/chi/v5"
@@ -14,17 +16,33 @@ import (
 
 // Handler agrupa todos los handlers
 type Handler struct {
-	store      *store.Store
-	jwtService *auth.Service
-	config     *config.Config
+	store         *store.Store
+	jwtService    *auth.Service
+	config        *config.Config
+	emailService  email.Service
+	deviceParser  *device.Parser
 }
 
 // New crea una nueva instancia de handlers
 func New(store *store.Store, jwtService *auth.Service, cfg *config.Config) *Handler {
+	// Convertir config.EmailConfig a email.Config
+	emailCfg := email.Config{
+		Provider:  cfg.Email.Provider,
+		APIKey:    cfg.Email.APIKey,
+		FromEmail: cfg.Email.FromEmail,
+		FromName:  cfg.Email.FromName,
+		SMTPHost:  cfg.Email.SMTPHost,
+		SMTPPort:  cfg.Email.SMTPPort,
+		SMTPUser:  cfg.Email.SMTPUser,
+		SMTPPass:  cfg.Email.SMTPPass,
+	}
+
 	return &Handler{
-		store:      store,
-		jwtService: jwtService,
-		config:     cfg,
+		store:        store,
+		jwtService:   jwtService,
+		config:       cfg,
+		emailService: email.NewService(emailCfg),
+		deviceParser: device.NewParser(),
 	}
 }
 

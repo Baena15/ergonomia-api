@@ -16,6 +16,7 @@ type Config struct {
 	JWT      JWTConfig
 	Server   ServerConfig
 	CORS     CORSConfig
+	Email    EmailConfig
 }
 
 // DatabaseConfig configuración de PostgreSQL
@@ -39,6 +40,18 @@ type ServerConfig struct {
 // CORSConfig configuración de CORS
 type CORSConfig struct {
 	AllowedOrigins []string
+}
+
+// EmailConfig configuración de email
+type EmailConfig struct {
+	Provider  string // "resend", "smtp", "console"
+	APIKey    string
+	FromEmail string
+	FromName  string
+	SMTPHost  string
+	SMTPPort  int
+	SMTPUser  string
+	SMTPPass  string
 }
 
 // Load carga la configuración desde variables de entorno
@@ -65,6 +78,16 @@ func Load() *Config {
 		},
 		CORS: CORSConfig{
 			AllowedOrigins: getEnvAsSlice("ALLOWED_ORIGINS", []string{"http://localhost:8080"}),
+		},
+		Email: EmailConfig{
+			Provider:  getEnv("EMAIL_PROVIDER", "console"), // console, resend, smtp
+			APIKey:    getEnv("EMAIL_API_KEY", ""),
+			FromEmail: getEnv("EMAIL_FROM", "noreply@ergonomia.pro"),
+			FromName:  getEnv("EMAIL_FROM_NAME", "Ergonomía Pro"),
+			SMTPHost:  getEnv("SMTP_HOST", ""),
+			SMTPPort:  getEnvAsInt("SMTP_PORT", 587),
+			SMTPUser:  getEnv("SMTP_USER", ""),
+			SMTPPass:  getEnv("SMTP_PASS", ""),
 		},
 	}
 }
