@@ -38,6 +38,11 @@ func main() {
 
 	log.Println("✅ Connected to database")
 
+	// Ejecutar migraciones automáticamente
+	if err := runMigrations(str); err != nil {
+		log.Printf("⚠️  Migration warning: %v", err)
+	}
+
 	// Inicializar servicios
 	jwtService := auth.NewService(
 		cfg.JWT.Secret,
@@ -211,4 +216,128 @@ func maskConnectionString(connStr string) string {
 		}
 	}
 	return connStr
+}
+
+// runMigrations ejecuta migraciones SQL básicas
+func runMigrations(str *store.Store) error {
+	log.Println("🔄 Running migrations...")
+
+	ctx := context.Background()
+	pool := str.Pool()
+
+	// Crear extensión UUID primero
+	_, _ = pool.Exec(ctx, "CREATE EXTENSION IF NOT EXISTS \"uuid-ossp\"")
+
+	// Crear tablas una por una
+	statements := []string{
+		// Tabla users
+		`CREATE TABLE IF NOT EXISTS users (
+			id SERIAL PRIMARY KEY,
+			email VARCHAR(255) UNIQUE NOT NULL,
+			password_hash VARCHAR(255) NOT NULL,
+			first_name VARCHAR(100) NOT NULL,
+			last_name VARCHAR(100) NOT NULL,
+			is_admin BOOLEAN DEFAULT FALSE,
+			created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+			updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+		)`,
+		`CREATE INDEX IF NOT EXISTS idx_users_email ON users(email)`,
+
+		// Tabla products
+		`CREATE TABLE IF NOT EXISTS products (
+			id SERIAL PRIMARY KEY,
+			name VARCHAR(200) NOT NULL,
+			slug VARCHAR(200) UNIQUE NOT NULL,
+			description TEXT NOT NULL,
+			category VARCHAR(50) NOT NULL,
+			subcategory VARCHAR(50),
+			price DECIMAL(10, 2) NOT NULL,
+			currency VARCHAR(3) DEFAULT 'EUR',
+			rating DECIMAL(2, 1) CHECK (rating >= 0 AND rating <= 5),
+			reviews INTEGER DEFAULT 0,
+			image_url VARCHAR(500),
+			pros TEXT[],
+			cons TEXT[],
+			ideal_for TEXT[],
+			affiliate_links JSONB,
+			is_active BOOLEAN DEFAULT TRUE,
+			created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+			updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+		)`,
+		`CREATE INDEX IF NOT EXISTS idx_products_category ON products(category)`,
+		`CREATE INDEX IF NOT EXISTS idx_products_slug ON products(slug)`,
+		`CREATE INDEX IF NOT EXISTS idx_products_active ON products(is_active)`,
+
+		// Tabla favorites
+		`CREATE TABLE IF NOT EXISTS favorites (
+			id SERIAL PRIMARY KEY,
+			user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+			product_id INTEGER REFERENCES products(id) ON DELETE CASCADE,
+			created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+			UNIQUE(user_id, product_id)
+		)`,
+		`CREATE INDEX IF NOT EXISTS idx_favorites_user ON favorites(user_id)`,
+
+		// Tabla comparisons
+		`CREATE TABLE IF NOT EXISTS comparisons (
+			id SERIAL PRIMARY KEY,
+			user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+			slug VARCHAR(100) UNIQUE NOT NULL,
+			title VARCHAR(200) NOT NULL,
+			product_ids INTEGER[],
+			created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+			updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+		)`,
+		`CREATE INDEX IF NOT EXISTS idx_comparations_user ON comparisons(user_id)`,
+		`CREATE INDEX IF NOT EXISTS idx_comparations_slug ON comparisons(slug)`,
+	}
+
+	// Ejecutar cada statement
+	for i, stmt := range statements {
+		_, err := pool.Exec(ctx, stmt)
+		if err != nil {
+			// Ignorar errores de "already exists"
+			if !strings.Contains(err.Error(), "already exists") {
+				log.Printf("  ⚠️  Migration %d: %v", i+1, err)
+			}
+		}
+	}
+
+	// Insertar datos de ejemplo solo si no hay productos
+	var count int
+	row := pool.QueryRow(ctx, "SELECT COUNT(*) FROM products")
+	if err := row.Scan(&count); err == nil && count == 0 {
+		log.Println("🌱 Seeding initial data...")
+		// Insertar productos de ejemplo
+		_, _ = pool.Exec(ctx, `INSERT INTO products (name, slug, description, category, subcategory, price, currency, rating, reviews, pros, cons, ideal_for, affiliate_links) VALUES
+			('Reposapiés Ergonómico Ajustable HUANUO', 'reposapies-huanuo-ajustable', 'Reposapiés ajustable en altura e inclinación con textura masaje. Mejora la circulación y reduce la presión en las piernas.', 'general', 'reposapies', 29.99, 'EUR', 4.5, 2847, 
+			 ARRAY['Ajustable en altura (10-17cm)', 'Superficie texturizada masaje', 'Ángulo de inclinación ajustable', 'Base antideslizante'],
+			 ARRAY['Plástico algo rígido al principio', 'No tiene función de calor'],
+			 ARRAY['oficina', 'trabajo-casa', 'piernas-cansadas'],
+			 '{"amazon": "https://www.amazon.es/s?k=HUANUO+reposapies+ajustable&tag=baena15-21"}')`)
+		
+		_, _ = pool.Exec(ctx, `INSERT INTO products (name, slug, description, category, subcategory, price, currency, rating, reviews, pros, cons, ideal_for, affiliate_links) VALUES
+			('SIHOO M57 Silla Ergonómica de Oficina', 'silla-sihoo-m57', 'Silla ergonómica con soporte lumbar dinámico, reposabrazos 3D ajustables y malla transpirable. Ideal para largas jornadas de trabajo.', 'espalda', 'sillas', 189.99, 'EUR', 4.7, 15234,
+			 ARRAY['Soporte lumbar ajustable dinámicamente', 'Reposabrazos 3D', 'Malla transpirable de alta calidad', 'Reposacabezas ajustable', 'Excelente relación calidad-precio'],
+			 ARRAY['Montaje puede llevar 30-45 minutos', 'Para usuarios hasta 100kg'],
+			 ARRAY['programadores', 'oficina', 'dolor-espalda', 'largas-jornadas'],
+			 '{"amazon": "https://www.amazon.es/s?k=SIHOO+M57+silla+ergonomica&tag=baena15-21"}')`)
+		
+		_, _ = pool.Exec(ctx, `INSERT INTO products (name, slug, description, category, subcategory, price, currency, rating, reviews, pros, cons, ideal_for, affiliate_links) VALUES
+			('Cojín Lumbar Ergonómico Dreamer Car', 'cojin-lumbar-dreamer', 'Cojín lumbar de espuma viscoelástica con funda lavable. Diseño ortopédico que se adapta a la curva natural de la espalda.', 'espalda', 'cojines-lumbares', 24.95, 'EUR', 4.4, 8932,
+			 ARRAY['Espuma viscoelástica de alta densidad', 'Diseño ergonómico probado', 'Funda transpirable y lavable', 'Correas ajustables', 'Portátil'],
+			 ARRAY['Puede ser demasiado firme al principio', 'Tamaño estándar, no XL'],
+			 ARRAY['dolor-espalda', 'oficina', 'coche', 'silla-rigida'],
+			 '{"amazon": "https://www.amazon.es/s?k=cojin+lumbar+ergonomico&tag=baena15-21"}')`)
+		
+		_, _ = pool.Exec(ctx, `INSERT INTO products (name, slug, description, category, subcategory, price, currency, rating, reviews, pros, cons, ideal_for, affiliate_links) VALUES
+			('Logitech ERGO K860 Teclado Ergonómico Split', 'teclado-logitech-ergo-k860', 'Teclado inalámbrico ergonómico con diseño split curvo y reposamanos integrado. Reduce la tensión en muñecas y antebrazos.', 'programadores', 'teclados', 119.99, 'EUR', 4.6, 3421,
+			 ARRAY['Diseño split curvo natural', 'Reposamanos acolchado integrado', 'Teclas de perfil bajo silenciosas', 'Conectividad multi-dispositivo', 'Batería de 2 años'],
+			 ARRAY['Precio elevado', 'Curva de aprendizaje de 1-2 semanas', 'No es mecánico'],
+			 ARRAY['programadores', 'tunnel-carpiano', 'escritura-larga'],
+			 '{"amazon": "https://www.amazon.es/s?k=Logitech+ERGO+K860&tag=baena15-21"}')`)
+	}
+
+	log.Println("✅ Migrations completed")
+	return nil
 }
