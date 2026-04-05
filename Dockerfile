@@ -5,16 +5,20 @@ WORKDIR /app
 RUN apk add --no-cache git
 
 # Copiar archivos de módulos primero (cache)
-COPY go.mod go.sum* ./
+COPY go.mod go.sum ./
 
 # Descargar dependencias
-RUN go mod download || true
+RUN go mod download
 
-# Copiar el resto del código
-COPY . .
+# Copiar el código fuente explícitamente
+COPY cmd/ ./cmd/
+COPY internal/ ./internal/
+COPY pkg/ ./pkg/
+COPY migrations/ ./migrations/
+COPY web/ ./web/
 
 # Verificar estructura y compilar
-RUN ls -la && ls -la cmd/ 2>/dev/null || true
+RUN ls -la cmd/api/
 RUN CGO_ENABLED=0 GOOS=linux go build -v -o api ./cmd/api
 
 FROM alpine:latest
