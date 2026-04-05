@@ -3,6 +3,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"log"
 	"net/http"
 	"os"
@@ -225,6 +226,20 @@ func maskConnectionString(connStr string) string {
 
 // runMigrations ejecuta las migraciones automáticas al iniciar
 func runMigrations(ctx context.Context, str *store.Store) error {
+	// Crear función update_updated_at_column si no existe
+	createFuncSQL := `
+CREATE OR REPLACE FUNCTION update_updated_at_column()
+RETURNS TRIGGER AS $$
+BEGIN
+    NEW.updated_at = CURRENT_TIMESTAMP;
+    RETURN NEW;
+END;
+$$ language 'plpgsql';
+`
+	if _, err := str.Pool().Exec(ctx, createFuncSQL); err != nil {
+		return fmt.Errorf("failed to create function: %w", err)
+	}
+
 	migrationSQL := `
 -- Tabla de historial de logins
 CREATE TABLE IF NOT EXISTS login_history (
