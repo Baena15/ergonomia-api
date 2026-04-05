@@ -2,57 +2,17 @@
 package device
 
 import (
-	"regexp"
 	"strings"
 
 	"github.com/Gentleman-Programming/ergonomia-api/internal/models"
 )
 
 // Parser detecta información del dispositivo desde User-Agent
-type Parser struct {
-	mobilePatterns  []*regexp.Regexp
-	tabletPatterns  []*regexp.Regexp
-	browserPatterns map[string]*regexp.Regexp
-	osPatterns      map[string]*regexp.Regexp
-	devicePatterns  map[string]*regexp.Regexp
-}
+type Parser struct{}
 
 // NewParser crea un nuevo parser de dispositivos
 func NewParser() *Parser {
-	return &Parser{
-		mobilePatterns: []*regexp.Regexp{
-			regexp.MustCompile(`(?i)mobile|iphone|ipod|android.*mobile|windows phone`),
-		},
-		tabletPatterns: []*regexp.Regexp{
-			regexp.MustCompile(`(?i)tablet|ipad|android(?!.*mobile)|kindle|silk`),
-		},
-		browserPatterns: map[string]*regexp.Regexp{
-			"Chrome":  regexp.MustCompile(`(?i)chrome/(\d+\.\d+)`),
-			"Firefox": regexp.MustCompile(`(?i)firefox/(\d+\.\d+)`),
-			"Safari":  regexp.MustCompile(`(?i)safari/(\d+\.\d+)`),
-			"Edge":    regexp.MustCompile(`(?i)edge/(\d+\.\d+)|edg/(\d+\.\d+)`),
-			"Opera":   regexp.MustCompile(`(?i)opera/(\d+\.\d+)|opr/(\d+\.\d+)`),
-		},
-		osPatterns: map[string]*regexp.Regexp{
-			"Windows":   regexp.MustCompile(`(?i)windows nt (\d+\.\d+)`),
-			"macOS":     regexp.MustCompile(`(?i)mac os x (\d+[._]\d+)`),
-			"iOS":       regexp.MustCompile(`(?i)os (\d+[._]\d+)`),
-			"Android":   regexp.MustCompile(`(?i)android (\d+\.\d+)`),
-			"Linux":     regexp.MustCompile(`(?i)linux`),
-			"Chrome OS": regexp.MustCompile(`(?i)crOS`),
-		},
-		devicePatterns: map[string]*regexp.Regexp{
-			"iPhone":         regexp.MustCompile(`(?i)iphone`),
-			"iPad":           regexp.MustCompile(`(?i)ipad`),
-			"Samsung Galaxy": regexp.MustCompile(`(?i)samsung|galaxy`),
-			"Google Pixel":   regexp.MustCompile(`(?i)pixel`),
-			"OnePlus":        regexp.MustCompile(`(?i)oneplus`),
-			"Huawei":         regexp.MustCompile(`(?i)huawei`),
-			"Xiaomi":         regexp.MustCompile(`(?i)xiaomi|redmi`),
-			"MacBook":        regexp.MustCompile(`(?i)macintosh|macbook`),
-			"Windows PC":     regexp.MustCompile(`(?i)windows`),
-		},
-	}
+	return &Parser{}
 }
 
 // Parse analiza el User-Agent y devuelve información del dispositivo
@@ -66,70 +26,85 @@ func (p *Parser) Parse(userAgent string) models.DeviceInfo {
 		}
 	}
 
+	ua := strings.ToLower(userAgent)
 	info := models.DeviceInfo{
 		DeviceType: "desktop",
 		IsDesktop:  true,
 	}
 
-	// Detectar si es móvil
-	for _, pattern := range p.mobilePatterns {
-		if pattern.MatchString(userAgent) {
-			info.DeviceType = "mobile"
-			info.IsMobile = true
-			info.IsDesktop = false
-			break
-		}
-	}
-
-	// Detectar si es tablet
-	for _, pattern := range p.tabletPatterns {
-		if pattern.MatchString(userAgent) {
-			info.DeviceType = "tablet"
-			info.IsTablet = true
-			info.IsMobile = false
-			info.IsDesktop = false
-			break
-		}
+	// Detectar tipo de dispositivo
+	if strings.Contains(ua, "mobile") || strings.Contains(ua, "iphone") || 
+	   strings.Contains(ua, "ipod") || strings.Contains(ua, "android") && strings.Contains(ua, "mobile") {
+		info.DeviceType = "mobile"
+		info.IsMobile = true
+		info.IsDesktop = false
+	} else if strings.Contains(ua, "tablet") || strings.Contains(ua, "ipad") || 
+	          (strings.Contains(ua, "android") && !strings.Contains(ua, "mobile")) {
+		info.DeviceType = "tablet"
+		info.IsTablet = true
+		info.IsDesktop = false
 	}
 
 	// Detectar navegador
-	for browser, pattern := range p.browserPatterns {
-		if matches := pattern.FindStringSubmatch(userAgent); matches != nil {
-			info.Browser = browser
-			if len(matches) > 1 && matches[1] != "" {
-				info.BrowserVer = strings.Replace(matches[1], "_", ".", -1)
-			} else if len(matches) > 2 && matches[2] != "" {
-				info.BrowserVer = strings.Replace(matches[2], "_", ".", -1)
-			}
-			break
+	switch {
+	case strings.Contains(ua, "chrome"):
+		info.Browser = "Chrome"
+		info.BrowserVer = extractVersion(ua, "chrome/")
+	case strings.Contains(ua, "firefox"):
+		info.Browser = "Firefox"
+		info.BrowserVer = extractVersion(ua, "firefox/")
+	case strings.Contains(ua, "safari") && !strings.Contains(ua, "chrome"):
+		info.Browser = "Safari"
+		info.BrowserVer = extractVersion(ua, "version/")
+	case strings.Contains(ua, "edge") || strings.Contains(ua, "edg/"):
+		info.Browser = "Edge"
+		info.BrowserVer = extractVersion(ua, "edge/")
+		if info.BrowserVer == "" {
+			info.BrowserVer = extractVersion(ua, "edg/")
 		}
-	}
-	if info.Browser == "" {
+	case strings.Contains(ua, "opera") || strings.Contains(ua, "opr/"):
+		info.Browser = "Opera"
+	default:
 		info.Browser = "Unknown"
 	}
 
 	// Detectar sistema operativo
-	for os, pattern := range p.osPatterns {
-		if matches := pattern.FindStringSubmatch(userAgent); matches != nil {
-			info.OS = os
-			if len(matches) > 1 {
-				info.OSVersion = strings.Replace(matches[1], "_", ".", -1)
-			}
-			break
-		}
-	}
-	if info.OS == "" {
+	switch {
+	case strings.Contains(ua, "windows"):
+		info.OS = "Windows"
+		info.OSVersion = extractVersion(ua, "windows nt ")
+	case strings.Contains(ua, "mac os") || strings.Contains(ua, "macos"):
+		info.OS = "macOS"
+		info.OSVersion = extractVersion(ua, "mac os x ")
+		info.OSVersion = strings.Replace(info.OSVersion, "_", ".", -1)
+	case strings.Contains(ua, "iphone") || strings.Contains(ua, "ipad"):
+		info.OS = "iOS"
+		info.OSVersion = extractVersion(ua, "os ")
+		info.OSVersion = strings.Replace(info.OSVersion, "_", ".", -1)
+	case strings.Contains(ua, "android"):
+		info.OS = "Android"
+		info.OSVersion = extractVersion(ua, "android ")
+	case strings.Contains(ua, "linux"):
+		info.OS = "Linux"
+	default:
 		info.OS = "Unknown"
 	}
 
 	// Detectar nombre del dispositivo
-	for device, pattern := range p.devicePatterns {
-		if pattern.MatchString(userAgent) {
-			info.DeviceName = device
-			break
-		}
-	}
-	if info.DeviceName == "" {
+	switch {
+	case strings.Contains(ua, "iphone"):
+		info.DeviceName = "iPhone"
+	case strings.Contains(ua, "ipad"):
+		info.DeviceName = "iPad"
+	case strings.Contains(ua, "samsung") || strings.Contains(ua, "galaxy"):
+		info.DeviceName = "Samsung Galaxy"
+	case strings.Contains(ua, "pixel"):
+		info.DeviceName = "Google Pixel"
+	case strings.Contains(ua, "macintosh") || strings.Contains(ua, "macbook"):
+		info.DeviceName = "MacBook"
+	case strings.Contains(ua, "windows"):
+		info.DeviceName = "Windows PC"
+	default:
 		if info.IsMobile {
 			info.DeviceName = "Mobile Device"
 		} else if info.IsTablet {
@@ -140,6 +115,35 @@ func (p *Parser) Parse(userAgent string) models.DeviceInfo {
 	}
 
 	return info
+}
+
+// extractVersion extrae la versión de una cadena user-agent
+func extractVersion(ua, prefix string) string {
+	idx := strings.Index(ua, prefix)
+	if idx == -1 {
+		return ""
+	}
+	
+	start := idx + len(prefix)
+	if start >= len(ua) {
+		return ""
+	}
+	
+	// Encontrar el final de la versión (espacio, punto y coma, paréntesis, etc.)
+	end := start
+	for end < len(ua) && isVersionChar(ua[end]) {
+		end++
+	}
+	
+	if end > start {
+		return ua[start:end]
+	}
+	return ""
+}
+
+// isVersionChar verifica si un caracter es válido para una versión
+func isVersionChar(c byte) bool {
+	return (c >= '0' && c <= '9') || c == '.' || c == '_'
 }
 
 // FormatDeviceInfo formatea la información del dispositivo para mostrar
