@@ -1,8 +1,8 @@
-[phases.build]
-cmd = "go build -o api ./cmd/api"
-
 [phases.setup]
-nixPkgs = ["go"]
+nixPkgs = ["go_1_23"]
+
+[phases.build]
+cmds = ["go mod download", "go build -o api ./cmd/api"]
 
 [start]
 cmd = "./api"
