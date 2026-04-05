@@ -16,11 +16,11 @@ type Product struct {
 	Currency        string             `json:"currency" db:"currency"`
 	Rating          float64            `json:"rating" db:"rating"`
 	Reviews         int                `json:"reviews" db:"reviews"`
-	ImageURL        string             `json:"image_url" db:"image_url"`
-	Pros            []string           `json:"pros" db:"pros"`
-	Cons            []string           `json:"cons" db:"cons"`
-	IdealFor        []string           `json:"ideal_for" db:"ideal_for"`
-	AffiliateLinks  map[string]string  `json:"affiliate_links" db:"affiliate_links"`
+	ImageURL        *string             `json:"image_url" db:"image_url"`
+	Pros            []string            `json:"pros" db:"pros"`
+	Cons            []string            `json:"cons" db:"cons"`
+	IdealFor        []string            `json:"ideal_for" db:"ideal_for"`
+	AffiliateLinks  map[string]string   `json:"affiliate_links" db:"affiliate_links"`
 	IsActive        bool               `json:"is_active" db:"is_active"`
 	CreatedAt       time.Time          `json:"created_at" db:"created_at"`
 	UpdatedAt       time.Time          `json:"updated_at" db:"updated_at"`
