@@ -5,6 +5,7 @@ import (
 	"net/http"
 
 	"github.com/Gentleman-Programming/ergonomia-api/internal/models"
+	"github.com/Gentleman-Programming/ergonomia-api/internal/store"
 	"golang.org/x/crypto/bcrypt"
 )
 

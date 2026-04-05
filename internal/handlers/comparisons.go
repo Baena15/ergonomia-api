@@ -3,6 +3,7 @@ package handlers
 import (
 	"encoding/json"
 	"net/http"
+	"strconv"
 
 	"github.com/Gentleman-Programming/ergonomia-api/internal/models"
 	"github.com/go-chi/chi/v5"

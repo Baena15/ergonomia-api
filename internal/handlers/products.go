@@ -6,6 +6,7 @@ import (
 	"strconv"
 
 	"github.com/Gentleman-Programming/ergonomia-api/internal/models"
+	"github.com/Gentleman-Programming/ergonomia-api/internal/store"
 	"github.com/go-chi/chi/v5"
 )
 
@@ -100,7 +101,7 @@ func (h *Handler) CreateProduct(w http.ResponseWriter, r *http.Request) {
 
 	product, err := h.store.CreateProduct(r.Context(), &req)
 	if err != nil {
-		if IsUniqueViolation(err) {
+		if store.IsUniqueViolation(err) {
 			RespondWithError(w, http.StatusConflict, "Product with this slug already exists")
 			return
 		}
