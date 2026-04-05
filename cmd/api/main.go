@@ -130,6 +130,7 @@ func main() {
 
 			r.Route("/admin", func(r chi.Router) {
 				r.Get("/stats", h.GetAdminStats)
+				r.Post("/migrate", h.RunMigrations)
 				r.Route("/products", func(r chi.Router) {
 					r.Post("/", h.CreateProduct)
 					r.Put("/{id}", h.UpdateProduct)
